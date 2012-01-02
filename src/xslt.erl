@@ -5,13 +5,20 @@
 %% Include files
 %% --------------------------------------------------------------------
 -include("../include/common.hrl").
+
 %% ----------------------------------------------------------------------------
 %% Defines
 %% ----------------------------------------------------------------------------
-%-record(state, {debug=false, sab, sabAdapterPath}). %% Server state
+
 -record(state,
-    {connections, xslPool, tasks, reconnectionTime, necessary, xslAdapterPath}).
-%    {ok, #state{sab=Sab, sabAdapterPath=SabAdapterPath}, ?TIMEOUT}.
+    {   connections,
+        xsl_pool,
+        tasks,
+        reconnection_time,
+        necessary,
+        xslt_adapter_path
+    }).
+
 -define(TIMEOUT, 10000).
 
 -define(XSLT_TOUT, 10000).
@@ -44,23 +51,23 @@ start_link()->
 %% ====================================================================
 %% External functions
 %% ====================================================================
-start_link(XslAdapterPath)->
+start_link(Xslt_adapter_path)->
     gen_server:start_link({local, ?MODULE},
-        ?MODULE, [XslAdapterPath], [{spawn_opt,[{min_heap_size,200000}]}]).
+        ?MODULE, [Xslt_adapter_path], [{spawn_opt,[{min_heap_size,200000}]}]).
 
 
-apply(XSL_URL, XML) ->
+apply(Xsl_url, Xml) ->
     case whereis(xslt) of
         Pid when is_pid(Pid) ->
             gen_server:cast(Pid, {con_request, self()}),
             receive
                 {xslconnection, Con} ->
                     try
-                        case xslt_adapter:apply_xsl2(Con, XSL_URL, XML) of
+                        case xslt_adapter:apply_xsl2(Con, Xsl_url, Xml) of
                             {ok, HTML} -> 
                                 gen_server:cast(Pid, {con_free, Con}),
                                 HTML;
-                            Other -> 
+                            Other ->
                                 ?ERROR(?FMT("apply_xsl error: ~p~n", [Other])),
                                 gen_server:cast(Pid, {con_error, Con}),
                                 ""
@@ -88,11 +95,16 @@ apply(XSL_URL, XML) ->
 %%          ignore               |
 %%          {stop, Reason}
 %% --------------------------------------------------------------------
-init([XslAdapterPath]) ->
+init([Xslt_adapter_path]) ->
     ?INFO(?FMT("XSL PROC POOL STARTING...~n~n~n", [])),
     process_flag(trap_exit, true),
     {ok, #state{
-        connections=[], xslPool = [], necessary=10, reconnectionTime=getNow(), tasks=[], xslAdapterPath=XslAdapterPath
+        connections=[],
+        xsl_pool = [],
+        necessary=10,
+        reconnection_time=getNow(),
+        tasks=[],
+        xslt_adapter_path=Xslt_adapter_path
     }, 0}.
 
 %% --------------------------------------------------------------------
@@ -109,7 +121,7 @@ init([XslAdapterPath]) ->
 handle_call(Request, _From, State) ->
     ?ERROR(?FMT("~p:~p unexpected call: ~p~n", [?MODULE, ?LINE, Request])),
     ?INFO(?FMT("~p ~p~n", [?MODULE,{unexpected_call,Request}])),
-    {NState, Timeout} = checkReconnection(State),
+    {NState, Timeout} = check_reconnection(State),
     Reply = {error, unexpected_call}, 
     {reply, Reply, NState, Timeout}.
 
@@ -122,11 +134,15 @@ handle_call(Request, _From, State) ->
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
 
-handle_cast({con_request, Pid}, State=#state{connections=Cons, tasks=Tasks, xslPool=_CPool, necessary=_N}) ->
-    {RestTasks, RestCons} = execTasks(Tasks++[Pid], Cons),
-    {NState, Timeout} = checkReconnection(State#state{connections=RestCons, tasks=RestTasks}),
+handle_cast({con_request, Pid}, State=#state{connections=Cons,
+        tasks=Tasks, xsl_pool=_CPool, necessary=_N}) ->
+    {RestTasks, Rest_cons} = exec_tasks(Tasks++[Pid], Cons),
+    {NState, Timeout} = check_reconnection(
+        State#state{connections=Rest_cons, tasks=RestTasks}),
     {noreply, NState, Timeout};
-handle_cast({con_error, Con}, State=#state{tasks=_Tasks, connections=Cons, necessary=N, xslPool=CPool}) ->
+
+handle_cast({con_error, Con}, State=#state{
+        tasks=_Tasks, connections=Cons, necessary=N, xsl_pool=CPool}) ->
     case lists:member(Con, CPool) of
         true ->
             ?INFO(?FMT("so.. reconnect ~p~n",[Con])),
@@ -136,18 +152,21 @@ handle_cast({con_error, Con}, State=#state{tasks=_Tasks, connections=Cons, neces
             NewNecessary = N
     end,
 
-    StateStage1 = State#state{necessary=NewNecessary, xslPool=CPool--[Con], connections=Cons--[Con]}, % 100% no Con in pools
-    {NState, Timeout} = checkReconnection(StateStage1),
+    StateStage1 = State#state{necessary=NewNecessary, xsl_pool=CPool--[Con],
+        connections=Cons--[Con]}, % 100% no Con in pools
+    {NState, Timeout} = check_reconnection(StateStage1),
     {noreply, NState, Timeout};
 
-handle_cast({con_free, Con}, State=#state{tasks=Tasks, connections=Cons, necessary=_N, xslPool=_CPool}) ->
-    {RestTasks, RestCons} = execTasks(Tasks, [Con|Cons]),
-    {NState, Timeout} = checkReconnection(State#state{connections=RestCons, tasks=RestTasks}),
+handle_cast({con_free, Con}, State=#state{tasks=Tasks,
+        connections=Cons, necessary=_N, xsl_pool=_CPool}) ->
+    {RestTasks, Rest_cons} = exec_tasks(Tasks, [Con|Cons]),
+    {NState, Timeout} =
+        check_reconnection(State#state{connections=Rest_cons, tasks=RestTasks}),
     {noreply, NState, Timeout};
 
 handle_cast(Msg, State) ->
     ?ERROR(?FMT("~p:~p unexpected cast: ~p~n", [?MODULE, ?LINE, Msg])),
-    {NState, Timeout} = checkReconnection(State),
+    {NState, Timeout} = check_reconnection(State),
     {noreply, NState, Timeout}.
 
 
@@ -160,12 +179,12 @@ handle_cast(Msg, State) ->
 %% --------------------------------------------------------------------
 handle_info(timeout, State=#state{tasks=Tasks, necessary=N}) ->
     ?INFO(?FMT("XSL RECONNECT TIMER ~p ... tasks: ~p~n", [N, length(Tasks)])),
-    {NState, Timeout} = checkReconnection(State),
+    {NState, Timeout} = check_reconnection(State),
     {noreply, NState, Timeout};
 
 handle_info(Info, State) ->
     ?INFO(?FMT("~p ~p~n", [?MODULE, {unexpected_info, Info}])),
-    {NState, Timeout} = checkReconnection(State),
+    {NState, Timeout} = check_reconnection(State),
     {noreply, NState, Timeout}.
 %% --------------------------------------------------------------------
 %% Function: terminate/2
@@ -190,63 +209,72 @@ code_change(_OldVsn, State, _Extra) ->
 
 
 
-initXslProcPool(0, Ret, _XslAdapterPath) ->
+init_xsl_proc_pool(0, Ret, _Xslt_adapter_path) ->
     Ret;
-initXslProcPool(N, Ret, XslAdapterPath) ->
-    case catch xslt_adapter:start(XslAdapterPath) of
-        {ok, XslNew} -> 
-            ?INFO(?FMT("new xsl processor ~p~n",[XslNew])),
-            initXslProcPool(N-1, [XslNew|Ret], XslAdapterPath);
+init_xsl_proc_pool(N, Ret, Xslt_adapter_path) ->
+    case catch xslt_adapter:start(Xslt_adapter_path) of
+        {ok, Xsl_new} ->
+            ?INFO(?FMT("new xsl processor ~p~n",[Xsl_new])),
+            init_xsl_proc_pool(N-1, [Xsl_new|Ret], Xslt_adapter_path);
         Error ->
             ?INFO(?FMT("init xsl processor error: ~p~n", [Error])),
             Ret
     end.
 
-initXslProcPool(N, XslAdapterPath) ->
-    initXslProcPool(N, [], XslAdapterPath).
+init_xsl_proc_pool(N, Xslt_adapter_path) ->
+    init_xsl_proc_pool(N, [], Xslt_adapter_path).
 
 
-execTasks(Tasks, Cons=[Con|RC]) ->
-    {Pid, Tasks2} = getNextTask(Tasks),
+exec_tasks(Tasks, Cons=[Con|RC]) ->
+    {Pid, Tasks2} = get_next_task(Tasks),
     if
         Pid =:= none ->
             {[], Cons};
         true ->
             Pid ! {xslconnection, Con},
-            execTasks(Tasks2, RC)
+            exec_tasks(Tasks2, RC)
     end;
-execTasks(RT, RC) ->
+exec_tasks(RT, RC) ->
     {RT, RC}.
-checkReconnection(State=#state{necessary=0}) ->
-    {State#state{reconnectionTime=infinity}, infinity};
-checkReconnection(State=#state{reconnectionTime=infinity}) ->
-    {State#state{reconnectionTime=getNow() + ?RECONNECT_TIMEOUT*1000}, ?RECONNECT_TIMEOUT};
+check_reconnection(State=#state{necessary=0}) ->
+    {State#state{reconnection_time=infinity}, infinity};
+check_reconnection(State=#state{reconnection_time=infinity}) ->
+    {State#state{reconnection_time=getNow() + ?RECONNECT_TIMEOUT*1000},
+        ?RECONNECT_TIMEOUT};
 
-checkReconnection(State=#state{reconnectionTime=RT, necessary=N, connections=Cons, xslPool=CPool, tasks=Tasks, xslAdapterPath=XslAdapterPath}) ->
+check_reconnection(State=#state{reconnection_time=RT, necessary=N,
+        connections=Cons, xsl_pool=CPool, tasks=Tasks,
+            xslt_adapter_path=Xslt_adapter_path}) ->
     Now = getNow(),
     if  
         Now < RT ->
             NState = State,
             Timeout = trunc((RT - Now)/1000);
         true -> 
-            NewCons = initXslProcPool(N, XslAdapterPath),
-            {RestTasks, RestCons} = execTasks(Tasks, Cons++NewCons),
-            ?INFO(?FMT("XSL adapter reconnecting: necessary - ~p, new - ~p, rest: ~p~n", [N, length(NewCons), length(RestCons)])),
-            NState = State#state{necessary=N-length(NewCons), reconnectionTime=infinity, connections=RestCons, tasks=RestTasks, 
-                                    xslPool=CPool++NewCons},
+            NewCons = init_xsl_proc_pool(N, Xslt_adapter_path),
+            {RestTasks, Rest_cons} = exec_tasks(Tasks, Cons++NewCons),
+            ?INFO(?FMT( "XSL adapter reconnecting: necessary "
+                        "- ~p, new - ~p, rest: ~p~n",
+                [N, length(NewCons), length(Rest_cons)])),
+            NState = State#state{
+                necessary=N-length(NewCons),
+                reconnection_time=infinity,
+                connections=Rest_cons,
+                tasks=RestTasks,
+                xsl_pool=CPool++NewCons},
             Timeout = infinity
     end,
     {NState, Timeout}.
 
-getNextTask([Pid|T]) ->
+get_next_task([Pid|T]) ->
     case lists:member(Pid, processes()) of
         true ->
             {Pid, T};
         false ->
             ?INFO(?FMT("XSL DROP INVALID PID ~p~n", [Pid])),
-            getNextTask(T)
+            get_next_task(T)
     end;
-getNextTask([]) ->
+get_next_task([]) ->
     {none, []}.
 
 getNow() ->
@@ -267,9 +295,10 @@ test() ->
         "<year>1985</year>"
         "</cd>"
     "</catalog>",
-
+    ?INFO(?FMT("Test~n", [])),
     ?MODULE:start(),
-    ?MODULE:apply(string:join([?LIBXSLT_ROOT_PATH, "priv/example/test.xsl"], "/"), Xml).
+    ?MODULE:apply(string:join([?LIBXSLT_ROOT_PATH,
+        "priv/example/test.xsl"], "/"), Xml).
 
 
 

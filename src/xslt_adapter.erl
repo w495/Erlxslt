@@ -1,6 +1,8 @@
 -module(xslt_adapter).
 -behaviour(gen_server).
 
+-include("../include/common.hrl").
+
 %%%%%%%%%%%%%%%%%%
 
 -export([start/1, start_link/1]).
@@ -16,27 +18,24 @@
 
 %%%%%%%%%%%%%%%%%%
 
-%-define(PORT_TOUT, 60000).
-%-define(SERVICE_TOUT, 5000).
-%-define(XSLT_TOUT, 60000).
-
--define(PORT_TOUT, 10000).
--define(SERVICE_TOUT, 5000).
--define(XSLT_TOUT, 10000).
+-define(PORT_TOUT,      10000).
+-define(SERVICE_TOUT,   5000).
+-define(XSLT_TOUT,      10000).
 
 %%%%%%%%%%%%%%%%%%
 
-start(SablotronAdapterPath) ->
-    gen_server:start(?MODULE, SablotronAdapterPath, []).
+start(Xslt_adapter_path) ->
+    gen_server:start(?MODULE, Xslt_adapter_path, []).
 
-start_link(SablotronAdapterPath) ->
-    gen_server:start_link(?MODULE, SablotronAdapterPath, []).
+start_link(Xslt_adapter_path) ->
+    gen_server:start_link(?MODULE, Xslt_adapter_path, []).
 
-init(SablotronAdapterPath) ->
-    {ok, open_port({spawn, SablotronAdapterPath}, [binary, use_stdio, {packet,4}])}.
+init(Xslt_adapter_path) ->
+    {ok, open_port({spawn, Xslt_adapter_path},
+        [binary, use_stdio, {packet,4}])}.
 
-terminate(_Reason, Port) -> 
-    io:format("TERMINATE!! ~n"),
+terminate(_Reason, Port) ->
+    ?ERROR("TERMINATE!! ~n"),
     port_close(Port),
     ok.
 
@@ -51,27 +50,23 @@ version(Pid) ->
 info(Pid) ->
     gen_server:call(Pid, info, ?SERVICE_TOUT).
 
-apply_xsl2(Pid, XSLFileName, XMLStr) ->
-%    io:format("22222222222~n"),
-    gen_server:call(Pid, {apply_xsl2, XSLFileName, XMLStr}, ?XSLT_TOUT).
+apply_xsl2(Pid, Xsl_file_name, Xml_str) ->
+    gen_server:call(Pid, {apply_xsl2, Xsl_file_name, Xml_str}, ?XSLT_TOUT).
 
 
 %%%%%%%%%%%%%%%%
 
 handle_call(die, _From, State) ->
-    io:format("STOP!! ~n"),
+    ?INFO("STOP!! ~n"),
     {stop, normal, ok, State};
 
 handle_call(version, _From, Port) ->
     port_util:port_command(Port, list_to_binary("v")),
     {reply, port_util:cond_result_list(Port, ?PORT_TOUT), Port};
 
-handle_call({apply_xsl2, XSLFileName, XMLStr}, _From, Port) ->
-%    io:format("start apply_xsl2, timeout: ~p ~n", [?PORT_TOUT]),
-    port_util:port_commands(Port, [list_to_binary("a"), XSLFileName, XMLStr]),
+handle_call({apply_xsl2, Xsl_file_name, Xml_str}, _From, Port) ->
+    port_util:port_commands(Port, [list_to_binary("a"), Xsl_file_name, Xml_str]),
     Z = port_util:cond_result(Port, ?PORT_TOUT),
-%    io:format("apply_xsl2 result: ~p~n", [Z]),
-    %{reply, port_util:cond_result(Port, ?PORT_TOUT), Port};
     {reply, Z, Port};
 
 
