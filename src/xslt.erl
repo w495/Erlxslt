@@ -19,18 +19,6 @@
         xslt_adapter_path
     }).
 
--define(TIMEOUT, 10000).
-
--define(XSLT_TOUT, 10000).
-
--define(RECONNECT_TIMEOUT, 5000).
-
--define(LIBXSLT_ROOT_PATH,
-    filename:dirname(filename:dirname(code:which(?MODULE)))).
--define(LIBXSLT_ADAPTER_PATH, "cbin/libxslt_adapter").
--define(LIBXSLT_FULL_ADAPTER_PATH,
-    string:join([?LIBXSLT_ROOT_PATH, ?LIBXSLT_ADAPTER_PATH], "/")).
-
 %% ----------------------------------------------------------------------------
 %% External exports
 %% ----------------------------------------------------------------------------
@@ -57,7 +45,7 @@ start_link(Xslt_adapter_path)->
 
 
 apply(Xsl_url, Xml) ->
-    case whereis(xslt) of
+    case whereis(?MODULE) of
         Pid when is_pid(Pid) ->
             gen_server:cast(Pid, {con_request, self()}),
             receive
@@ -101,8 +89,8 @@ init([Xslt_adapter_path]) ->
     {ok, #state{
         connections=[],
         xsl_pool = [],
-        necessary=10,
-        reconnection_time=getNow(),
+        necessary=?XSLT_NECESSARY,
+        reconnection_time=get_now(),
         tasks=[],
         xslt_adapter_path=Xslt_adapter_path
     }, 0}.
@@ -207,8 +195,6 @@ code_change(_OldVsn, State, _Extra) ->
 %% Local
 %% --------------------------------------------------------------------
 
-
-
 init_xsl_proc_pool(0, Ret, _Xslt_adapter_path) ->
     Ret;
 init_xsl_proc_pool(N, Ret, Xslt_adapter_path) ->
@@ -239,13 +225,13 @@ exec_tasks(RT, RC) ->
 check_reconnection(State=#state{necessary=0}) ->
     {State#state{reconnection_time=infinity}, infinity};
 check_reconnection(State=#state{reconnection_time=infinity}) ->
-    {State#state{reconnection_time=getNow() + ?RECONNECT_TIMEOUT*1000},
-        ?RECONNECT_TIMEOUT};
+    {State#state{reconnection_time=get_now() + ?XSLT_RECONNECT_TIMEOUT*1000},
+        ?XSLT_RECONNECT_TIMEOUT};
 
 check_reconnection(State=#state{reconnection_time=RT, necessary=N,
         connections=Cons, xsl_pool=CPool, tasks=Tasks,
             xslt_adapter_path=Xslt_adapter_path}) ->
-    Now = getNow(),
+    Now = get_now(),
     if  
         Now < RT ->
             NState = State,
@@ -277,11 +263,12 @@ get_next_task([Pid|T]) ->
 get_next_task([]) ->
     {none, []}.
 
-getNow() ->
+get_now() ->
     {_M,S,Mi} = now(),
-    S*1000000+Mi.
+    S*?XSLT_TIME_OFFSET+Mi.
 
 
+-include_lib("eunit/include/eunit.hrl").
 
 test() ->
     Xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
@@ -295,10 +282,15 @@ test() ->
         "<year>1985</year>"
         "</cd>"
     "</catalog>",
-    ?INFO(?FMT("Test~n", [])),
-    ?MODULE:start(),
-    ?MODULE:apply(string:join([?LIBXSLT_ROOT_PATH,
-        "priv/example/test.xsl"], "/"), Xml).
+    Etalon = <<"<?xml version=\"1.0\"?>\n<html><body><h2>My CD Collection</h2><table border=\"1\"><tr bgcolor=\"#9acd32\"><th>Title</th><th>Artist</th></tr><tr><td>Empire Burlesque</td><td>Bob Dylan</td></tr></table></body></html>\n">>,
+
+    start(),
+    Result = apply(string:join([?LIBXSLT_ROOT_PATH,
+        "priv/example/test.xsl"], "/"), Xml),
+
+    ?assertEqual(Etalon, Result),
+
+    ok.
 
 
 
