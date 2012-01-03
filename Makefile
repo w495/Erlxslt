@@ -1,31 +1,6 @@
-# default
 
-
-CC=g++
-EC=./rebar 
-EFLAGS=compile
-
-ESRC_DIR=src
-EONJ_DIR=ebin
-
-CSRC_DIR=c_src
-CONJ_DIR=ebin
-
-CSRC=$(CSRC_DIR)/libxslt_adapter.c
-COBJ=$(CONJ_DIR)/libxslt_adapter
-LDFLAGS=-lxml2 -lxslt
-CFLAGS=-Wall -pedantic -ansi
-CINCLUDES=/usr/include/libxml2
-
-all: c_bin
-	$(EC) $(EFLAGS)
-
-c_bin:
-	$(CC) -o -Wall $(COBJ) $(CSRC) -I$(CINCLUDES) $(LDFLAGS) $(CFLAGS)
-
-cleanall: clean
-	rm -rf $(CONJ_DIR)/*
+all:
+	./rebar compile
 
 clean:
-	rm -rf $(EONJ_DIR)/*
-
+	./rebar clean
