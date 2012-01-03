@@ -13,14 +13,15 @@ CONJ_DIR=ebin
 
 CSRC=$(CSRC_DIR)/libxslt_adapter.c
 COBJ=$(CONJ_DIR)/libxslt_adapter
-CFLAGS=-lxml2 -lxslt
+LDFLAGS=-lxml2 -lxslt
+CFLAGS=-Wall -pedantic -ansi
 CINCLUDES=/usr/include/libxml2
 
 all: c_bin
 	$(EC) $(EFLAGS)
 
 c_bin:
-	$(CC) -o $(COBJ) $(CSRC) -I$(CINCLUDES) $(CFLAGS)
+	$(CC) -o -Wall $(COBJ) $(CSRC) -I$(CINCLUDES) $(LDFLAGS) $(CFLAGS)
 
 cleanall: clean
 	rm -rf $(CONJ_DIR)/*
