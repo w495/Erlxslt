@@ -8,8 +8,8 @@ EFLAGS=compile
 ESRC_DIR=src
 EONJ_DIR=ebin
 
-CSRC_DIR=csrc
-CONJ_DIR=cbin
+CSRC_DIR=c_src
+CONJ_DIR=ebin
 
 CSRC=$(CSRC_DIR)/libxslt_adapter.c
 COBJ=$(CONJ_DIR)/libxslt_adapter
