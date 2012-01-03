@@ -285,7 +285,7 @@ test() ->
     Etalon = <<"<?xml version=\"1.0\"?>\n<html><body><h2>My CD Collection</h2><table border=\"1\"><tr bgcolor=\"#9acd32\"><th>Title</th><th>Artist</th></tr><tr><td>Empire Burlesque</td><td>Bob Dylan</td></tr></table></body></html>\n">>,
 
     start(),
-    Result = apply(string:join([?LIBXSLT_ROOT_PATH,
+    Result = ?MODULE:apply(string:join([?LIBXSLT_ROOT_PATH,
         "priv/example/test.xsl"], "/"), Xml),
 
     ?assertEqual(Etalon, Result),
