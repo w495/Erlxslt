@@ -2,11 +2,7 @@
     {description, "Erlang Xslt Transformer"},
     {vsn, "0.0.1"},
     {modules, [
-        clog,
-        config,
-        flog,
-        port_util,
-        sablotron,
+        xslt_port_util,
         xslt
     ]},
     {registered, []},

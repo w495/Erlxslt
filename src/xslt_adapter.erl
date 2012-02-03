@@ -3,6 +3,9 @@
 
 -include("../include/common.hrl").
 
+-define(VERSION_TOKEN,   "v").
+-define(APPLY_XSL_TOKEN, "a").
+
 %%%%%%%%%%%%%%%%%%
 
 -export([start/1, start_link/1]).
@@ -56,12 +59,13 @@ handle_call(die, _From, State) ->
     {stop, normal, ok, State};
 
 handle_call(version, _From, Port) ->
-    port_util:port_command(Port, list_to_binary("v")),
-    {reply, port_util:cond_result_list(Port, ?PORT_TIMEOUT), Port};
+    xslt_port_util:port_command(Port, list_to_binary(?VERSION_TOKEN)),
+    {reply, xslt_port_util:cond_result_list(Port, ?PORT_TIMEOUT), Port};
 
 handle_call({apply_xsl2, Xsl_file_name, Xml_str}, _From, Port) ->
-    port_util:port_commands(Port, [list_to_binary("a"), Xsl_file_name, Xml_str]),
-    Z = port_util:cond_result(Port, ?PORT_TIMEOUT),
+    xslt_port_util:port_commands(Port, [list_to_binary(?APPLY_XSL_TOKEN),
+        Xsl_file_name, Xml_str]),
+    Z = xslt_port_util:cond_result(Port, ?PORT_TIMEOUT),
     {reply, Z, Port};
 
 

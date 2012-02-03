@@ -76,18 +76,18 @@ encode_data_seq(Proplist) ->
 encode_seq({Tag, Proplist})
         when erlang:is_list(Tag) or erlang:is_atom(Tag) ->
     lists:append([
-        ?OPEN_B, convert:to_list(Tag), ?OPEN_E,
+        ?OPEN_B, xslt_convert:to_list(Tag), ?OPEN_E,
             encode_seq(Proplist),
-        ?CLOSE_B, convert:to_list(Tag), ?CLOSE_E,
+        ?CLOSE_B, xslt_convert:to_list(Tag), ?CLOSE_E,
         ?DELIM
     ]);
 
 encode_seq([{Tag, Value} | Rest ])
         when erlang:is_list(Tag) or erlang:is_atom(Tag) ->
     lists:append([
-        ?OPEN_B, convert:to_list(Tag), ?OPEN_E,
+        ?OPEN_B, xslt_convert:to_list(Tag), ?OPEN_E,
             encode_seq(Value),
-        ?CLOSE_B, convert:to_list(Tag), ?CLOSE_E,
+        ?CLOSE_B, xslt_convert:to_list(Tag), ?CLOSE_E,
         ?DELIM,
             encode_seq(Rest),
         ?DELIM
@@ -109,9 +109,9 @@ encode_seq([ Item | Rest ])  ->
 
 encode_seq(Value) when is_tuple(Value) ->
     Result = string:join([[encode_seq(Vi)] || Vi <- tuple_to_list(Value)], ?SPACE),
-    convert:to_list(Result);
+    xslt_convert:to_list(Result);
 
-encode_seq(Value) -> convert:to_list(Value).
+encode_seq(Value) -> xslt_convert:to_list(Value).
 
 -include_lib("eunit/include/eunit.hrl").
 
